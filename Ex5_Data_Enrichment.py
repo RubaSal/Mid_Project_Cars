@@ -2,8 +2,9 @@ from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, from_json, round, to_json, struct
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, TimestampType
 
+# Create SparkSession with the application name
 spark = SparkSession.builder \
-    .appName("DataEnrichmentStreaming") \
+    .appName("DataEnrichment") \
     .master("local[*]") \
     .config("spark.jars.packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.4.1") \
     .getOrCreate()
@@ -13,7 +14,7 @@ df = spark.readStream \
     .format("kafka") \
     .option("kafka.bootstrap.servers", "course-kafka:9092") \
     .option("subscribe", "sensors-sample") \
-    .option("startingOffsets", "latest") \
+    .option("startingOffsets", "earliest") \
     .load()
 
 # Parse JSON
@@ -44,7 +45,7 @@ Data_Enrichment = (
     .withColumnRenamed("car_model","model_name")
     .withColumnRenamed("car_brand","brand_name")
     .withColumn("expected_gear",(round(col("speed") / 30)).cast("int"))
-    .select("driver_id","brand_name","model_name","color_name","expected_gear")
+    .select("event_id","event_time","car_id","speed","rpm","gear","driver_id","brand_name","model_name","color_name","expected_gear")
 )
 
 # Convert to JSON for Kafka
@@ -55,7 +56,7 @@ query = Data_Enrichment_to_kafka.writeStream \
     .format("kafka") \
     .option("kafka.bootstrap.servers", "course-kafka:9092") \
     .option("topic", "samples-enriched") \
-    .option("checkpointLocation", "/tmp/spark_checkpoint") \
+    .option("checkpointLocation", "/tmp/spark_checkpoint_enriched") \
     .start()
 
 query.awaitTermination()  # keep streaming alive
